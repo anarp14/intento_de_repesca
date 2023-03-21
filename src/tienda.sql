@@ -48,7 +48,11 @@ DROP TABLE IF EXISTS valoraciones CASCADE;
 
 CREATE TABLE valoraciones (
     id       bigserial    PRIMARY KEY,
-    valoracion  int   CHECK (valoracion >= 1 AND valoracion <= 5) 
+    valoracion  int   CHECK (valoracion >= 1 AND valoracion <= 5),
+    usuario_id bigint NOT NULL REFERENCES usuarios (id),
+    articulo_id bigint NOT NULL REFERENCES articulos (id),
+    FOREIGN KEY (articulo_id) REFERENCES articulos(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 
 DROP TABLE IF EXISTS articulos_etiquetas CASCADE;
@@ -90,10 +94,3 @@ INSERT INTO articulos_etiquetas(articulo_id, etiqueta_id)
            (5, 1),
            (6, 2),
            (7, 1);
-
-INSERT INTO valoraciones (valoracion)
-    VALUES ('1'),
-            ('2'),
-            ('3'),
-            ('4'),
-            ('5');
