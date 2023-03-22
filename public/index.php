@@ -89,6 +89,13 @@
                                         <option value="5">5</option>
                                     </select>
                                 </label>
+                                <input type="hidden" name="articulo_id" value="<?= $fila['id'] ?>">
+                                <?php
+                                $usuario = \App\Tablas\Usuario::logueado();
+                                $usuario_id = $usuario ? $usuario->id : null;
+                                ?>
+                                <input type="hidden" name="usuario_id" value="<?= $usuario_id ?>">
+
                                 <?php if (!\App\Tablas\Usuario::esta_logueado()) : ?>
                                     <button type="submit" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 mr-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800" disabled>Votar</button>
                                 <?php else : ?>
@@ -96,6 +103,22 @@
                                 <?php endif; ?>
                             </form>
                         </div>
+                        <?php
+                        // Calcular la valoración promedio del artículo y actualizar la tabla de artículos
+                        $articulo_id = $fila['id'];
+                        $sent = $pdo->prepare("SELECT AVG(valoracion) AS valoracion_media FROM valoraciones WHERE articulo_id = :articulo_id");
+                        $sent->execute([$articulo_id]);
+                        $resultado = $sent->fetch(PDO::FETCH_ASSOC);
+                        
+                        $valoracion_media = $resultado['valoracion_media'];
+                        if ($valoracion_media == 0){
+                            $valoracion_media = 0;
+                        }
+                        else{
+                            $valoracion_media = round($resultado['valoracion_media']);
+                        }
+                        ?>
+                         <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">Valoración actual: <?= $valoracion_media ?></p>
                     </div>
                 <?php endforeach ?>
             </main>
