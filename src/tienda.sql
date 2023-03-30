@@ -7,8 +7,7 @@ CREATE TABLE articulos (
     codigo      varchar(13)   NOT NULL UNIQUE,
     descripcion varchar(255)  NOT NULL,
     precio      numeric(7, 2) NOT NULL,
-    stock       int           NOT NULL,
-    valoracion  int   CHECK (valoracion >= 1 AND valoracion <= 5)   
+    stock       int           NOT NULL
 );
 
 DROP TABLE IF EXISTS usuarios CASCADE;
@@ -47,12 +46,10 @@ CREATE TABLE etiquetas (
 DROP TABLE IF EXISTS valoraciones CASCADE;
 
 CREATE TABLE valoraciones (
-    id       bigserial    PRIMARY KEY,
-    valoracion  int   CHECK (valoracion >= 1 AND valoracion <= 5),
     usuario_id bigint NOT NULL REFERENCES usuarios (id),
     articulo_id bigint NOT NULL REFERENCES articulos (id),
-    FOREIGN KEY (articulo_id) REFERENCES articulos(id),
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+    valoracion  int   CHECK (valoracion >= 1 AND valoracion <= 5),
+    PRIMARY KEY (usuario_id, articulo_id)
 );
 
 DROP TABLE IF EXISTS articulos_etiquetas CASCADE;

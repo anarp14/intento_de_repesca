@@ -17,29 +17,39 @@
     $carrito = unserialize(carrito());
     $etiquetas = obtener_get('etiqueta');
     $valoracion = obtener_get('valoracion');
-    if ($etiquetas !== null) {
-        $etiquetas = explode(" ", $etiquetas);
-    } else {
-        $etiquetas = [];
-    }
-    $where = [];
-    $execute = [];
-
-    if (empty($etiquetas)) {
-        $where = '';
-    } else {
-        foreach ($etiquetas as $key => $etiqueta) {
-            $where[] = 'EXISTS (SELECT * FROM articulos_etiquetas WHERE articulos_etiquetas.articulo_id = articulos.id 
-            AND articulos_etiquetas.etiqueta_id IN (SELECT id FROM etiquetas WHERE lower (unaccent(etiqueta)) LIKE lower (unaccent(:etiqueta' . $key . '))))';
-            $execute[':etiqueta' . $key] = "%$etiqueta%";
-        }
-        $where = 'WHERE ' . implode(' AND ', $where);
-    }
-
+    $etiquetas = isset($etiquetas) ? explode(" ", $etiquetas) : [];
+    
     $pdo = conectar();
+    
+    $valid_etiquetas = array_filter($etiquetas, function ($etiqueta) use ($pdo) {
+        $stmt = $pdo->prepare("SELECT id FROM etiquetas WHERE lower(unaccent(etiqueta)) = lower(unaccent(:etiqueta))");
+        $stmt->execute([':etiqueta' => $etiqueta]);
+        return $stmt->fetchColumn() !== false;
+    });
+    
+    $where = '';
+    $having = '';
+    $execute = [];
+    
+    if (!empty($valid_etiquetas)) {
+        $where_clauses = [];
+        foreach ($valid_etiquetas as $key => $etiqueta) {
+            $where_clauses[] = 'lower(unaccent(e.etiqueta)) LIKE lower(unaccent(:etiqueta' . $key . '))';
+            $execute[':etiqueta' . $key] = $etiqueta;
+        }
+        $where = 'WHERE (' . implode(' OR ', $where_clauses) . ')';
+        $having = 'HAVING COUNT(DISTINCT ae.etiqueta_id) = ' . count($valid_etiquetas);
+    }
+    
+    $sent = $pdo->prepare("SELECT articulos.* FROM articulos 
+        JOIN articulos_etiquetas ae ON articulos.id = ae.articulo_id
+        JOIN etiquetas e ON ae.etiqueta_id = e.id $where 
+        GROUP BY articulos.id 
+        $having");
+    
+    $sent->execute($execute);    
 
-    $sent = $pdo->prepare("SELECT * FROM articulos $where");
-    $sent->execute($execute);
+
     ?>
     <div class="container mx-auto">
         <?php require '../src/_menu.php' ?>
@@ -81,19 +91,24 @@
                             <form action="valorar.php" method="GET">
                                 <label class="block mb-2 text-sm font-medium w-1/4 pr-4">
                                     Valoración:
+                                    <?php
+                                    $usuario = \App\Tablas\Usuario::logueado();
+                                    $usuario_id = $usuario ? $usuario->id : null;
+
+                                    $sent2 = $pdo->prepare("SELECT * FROM valoraciones WHERE usuario_id = :usuario_id AND articulo_id = :articulo_id");
+                                    $sent2->execute(['usuario_id' => $usuario_id, 'articulo_id' => $fila['id']]);
+                                    $valoracion_usuario = $sent2->fetch(PDO::FETCH_ASSOC);
+                                    ?>
                                     <select name="valoracion" id="valoracion">
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
+                                        <option value="" <?= (!$usuario_id) ? 'selected' : '' ?>></option>
+                                        <option value="1" <?= ($valoracion_usuario && $valoracion_usuario['valoracion'] == 1) ? 'selected' : '' ?>>1</option>
+                                        <option value="2" <?= ($valoracion_usuario && $valoracion_usuario['valoracion'] == 2) ? 'selected' : '' ?>>2</option>
+                                        <option value="3" <?= ($valoracion_usuario && $valoracion_usuario['valoracion'] == 3) ? 'selected' : '' ?>>3</option>
+                                        <option value="4" <?= ($valoracion_usuario && $valoracion_usuario['valoracion'] == 4) ? 'selected' : '' ?>>4</option>
+                                        <option value="5" <?= ($valoracion_usuario && $valoracion_usuario['valoracion'] == 5) ? 'selected' : '' ?>>5</option>
                                     </select>
                                 </label>
                                 <input type="hidden" name="articulo_id" value="<?= $fila['id'] ?>">
-                                <?php
-                                $usuario = \App\Tablas\Usuario::logueado();
-                                $usuario_id = $usuario ? $usuario->id : null;
-                                ?>
                                 <input type="hidden" name="usuario_id" value="<?= $usuario_id ?>">
 
                                 <?php if (!\App\Tablas\Usuario::esta_logueado()) : ?>
@@ -109,16 +124,15 @@
                         $sent = $pdo->prepare("SELECT AVG(valoracion) AS valoracion_media FROM valoraciones WHERE articulo_id = :articulo_id");
                         $sent->execute([$articulo_id]);
                         $resultado = $sent->fetch(PDO::FETCH_ASSOC);
-                        
+
                         $valoracion_media = $resultado['valoracion_media'];
-                        if ($valoracion_media == 0){
+                        if ($valoracion_media == 0) {
                             $valoracion_media = 0;
-                        }
-                        else{
+                        } else {
                             $valoracion_media = round($resultado['valoracion_media']);
                         }
                         ?>
-                         <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">Valoración actual: <?= $valoracion_media ?></p>
+                        <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">Valoración actual: <?= $valoracion_media ?></p>
                     </div>
                 <?php endforeach ?>
             </main>
